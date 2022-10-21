@@ -4,6 +4,7 @@ import ca.tweetzy.auctionhouse.AuctionHouse;
 import ca.tweetzy.auctionhouse.auction.AuctionPlayer;
 import ca.tweetzy.auctionhouse.auction.enums.AuctionItemCategory;
 import ca.tweetzy.auctionhouse.auction.enums.AuctionSaleType;
+import ca.tweetzy.auctionhouse.guis.GUISellItem;
 import ca.tweetzy.auctionhouse.settings.Settings;
 import lombok.Getter;
 import org.bukkit.Bukkit;
@@ -27,7 +28,7 @@ public class AuctionPlayerManager {
 
 	private final ConcurrentHashMap<UUID, AuctionPlayer> auctionPlayers = new ConcurrentHashMap<>();
 	private final HashMap<UUID, ItemStack> sellHolding = new HashMap<>();
-	private final HashSet<UUID> usingSellGUI = new HashSet<>();
+	private final HashMap<UUID, GUISellItem> usingSellGUI = new HashMap<>();
 	private final HashMap<UUID, Long> cooldowns = new HashMap<>();
 
 	public void addPlayer(AuctionPlayer auctionPlayer) {
@@ -70,9 +71,9 @@ public class AuctionPlayerManager {
 
 	}
 
-	public void addToUsingSellGUI(UUID uuid) {
+	public void addToUsingSellGUI(UUID uuid, GUISellItem gui) {
 		if (uuid == null) return;
-		this.usingSellGUI.add(uuid);
+		this.usingSellGUI.put(uuid, gui);
 	}
 
 	public void removeFromUsingSellGUI(UUID uuid) {

@@ -17,12 +17,11 @@ import ca.tweetzy.core.input.PlayerChatInput;
 import ca.tweetzy.core.utils.NumberUtils;
 import ca.tweetzy.core.utils.PlayerUtils;
 import ca.tweetzy.core.utils.TextUtils;
+import lombok.Getter;
 import lombok.NonNull;
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -40,6 +39,7 @@ import java.util.stream.Collectors;
 public class GUISellItem extends AbstractPlaceholderGui {
 
 	private final AuctionPlayer auctionPlayer;
+	@Getter
 	private ItemStack itemToBeListed;
 
 	private Double buyNowPrice;
@@ -48,8 +48,6 @@ public class GUISellItem extends AbstractPlaceholderGui {
 	private boolean isBiddingItem;
 	private boolean isAllowingBuyNow;
 	private int auctionTime;
-
-	private BukkitTask task;
 
 	public GUISellItem(AuctionPlayer auctionPlayer, ItemStack itemToBeListed, double buyNowPrice, double bidStartPrice, double bidIncrementPrice, boolean isBiddingItem, boolean isAllowingBuyNow, int auctionTime) {
 		super(auctionPlayer);
@@ -87,16 +85,11 @@ public class GUISellItem extends AbstractPlaceholderGui {
 				setAcceptsItems(held.getType() == XMaterial.AIR.parseMaterial());
 			}
 
-			AuctionHouse.getInstance().getAuctionPlayerManager().addToUsingSellGUI(open.player.getUniqueId());
-
-			makeMess();
+			AuctionHouse.getInstance().getAuctionPlayerManager().addToUsingSellGUI(open.player.getUniqueId(), this);
 		});
 
 		setOnClose(close -> {
-
-			cleanup();
-
-			if (!AuctionHouse.getInstance().getAuctionPlayerManager().getUsingSellGUI().contains(close.player.getUniqueId())) {
+			if (!AuctionHouse.getInstance().getAuctionPlayerManager().getUsingSellGUI().containsKey(close.player.getUniqueId())) {
 				ItemStack toGiveBack = AuctionHouse.getInstance().getAuctionPlayerManager().getSellHolding().get(close.player.getUniqueId());
 				PlayerUtils.giveItem(close.player, toGiveBack); // this could give them air
 
@@ -146,8 +139,6 @@ public class GUISellItem extends AbstractPlaceholderGui {
 					e.event.setCancelled(true);
 				}
 			}
-
-
 			this.itemToBeListed = e.clickedItem;
 		});
 
@@ -171,7 +162,7 @@ public class GUISellItem extends AbstractPlaceholderGui {
 				builder.isValidInput((p, str) -> {
 					String[] parts = ChatColor.stripColor(str).split(" ");
 					if (parts.length == 2) {
-						if (NumberUtils.isInt(parts[0]) && Arrays.asList("second", "minute", "hour", "day", "week", "month", "year").contains(parts[1].toLowerCase())) {
+						if (NumberUtils.isInt(parts[0]) && Arrays.asList("second", "minute", "hour", "day", "week", "month", "year", "seconds", "minutes", "hours", "days", "weeks", "months", "years").contains(parts[1].toLowerCase())) {
 							return AuctionAPI.toTicks(str) <= Settings.MAX_CUSTOM_DEFINED_TIME.getInt();
 						}
 					}
@@ -187,7 +178,7 @@ public class GUISellItem extends AbstractPlaceholderGui {
 					reopen(e);
 				});
 
-				builder.onPlayerDiconnect(() -> PlayerUtils.giveItem(e.player, this.itemToBeListed));
+				builder.onPlayerDiconnect(() -> PlayerUtils.giveItem(e.player, getItemAndReset()));
 
 				PlayerChatInput<Long> input = builder.build();
 				input.start();
@@ -198,7 +189,6 @@ public class GUISellItem extends AbstractPlaceholderGui {
 			setButton(3, 1, ConfigurationItemHelper.createConfigurationItem(Settings.GUI_SELL_ITEMS_BUY_NOW_ITEM.getString(), Settings.GUI_SELL_ITEMS_BUY_NOW_NAME.getString(), Settings.GUI_SELL_ITEMS_BUY_NOW_LORE.getStringList(), new HashMap<String, Object>() {{
 				put("%buy_now_price%", AuctionAPI.getInstance().formatNumber(buyNowPrice));
 			}}), ClickType.LEFT, e -> {
-				setTheItemToBeListed();
 				setAllowClose(true);
 
 				e.gui.close();
@@ -225,7 +215,7 @@ public class GUISellItem extends AbstractPlaceholderGui {
 					reopen(e);
 				});
 
-				builder.onPlayerDiconnect(() -> PlayerUtils.giveItem(e.player, this.itemToBeListed));
+				builder.onPlayerDiconnect(() -> PlayerUtils.giveItem(e.player, getItemAndReset()));
 
 				PlayerChatInput<Double> input = builder.build();
 				input.start();
@@ -236,7 +226,6 @@ public class GUISellItem extends AbstractPlaceholderGui {
 			setButton(3, Settings.FORCE_CUSTOM_BID_AMOUNT.getBoolean() ? 2 : Settings.ALLOW_USAGE_OF_BUY_NOW_SYSTEM.getBoolean() ? 2 : 1, ConfigurationItemHelper.createConfigurationItem(Settings.GUI_SELL_ITEMS_STARTING_BID_ITEM.getString(), Settings.GUI_SELL_ITEMS_STARTING_BID_NAME.getString(), Settings.GUI_SELL_ITEMS_STARTING_BID_LORE.getStringList(), new HashMap<String, Object>() {{
 				put("%starting_bid_price%", AuctionAPI.getInstance().formatNumber(bidStartPrice));
 			}}), ClickType.LEFT, e -> {
-				setTheItemToBeListed();
 				setAllowClose(true);
 
 				e.gui.close();
@@ -260,7 +249,7 @@ public class GUISellItem extends AbstractPlaceholderGui {
 					reopen(e);
 				});
 
-				builder.onPlayerDiconnect(() -> PlayerUtils.giveItem(e.player, this.itemToBeListed));
+				builder.onPlayerDiconnect(() -> PlayerUtils.giveItem(e.player, getItemAndReset()));
 
 				PlayerChatInput<Double> input = builder.build();
 				input.start();
@@ -270,7 +259,6 @@ public class GUISellItem extends AbstractPlaceholderGui {
 				setButton(3, 3, ConfigurationItemHelper.createConfigurationItem(Settings.GUI_SELL_ITEMS_BID_INC_ITEM.getString(), Settings.GUI_SELL_ITEMS_BID_INC_NAME.getString(), Settings.GUI_SELL_ITEMS_BID_INC_LORE.getStringList(), new HashMap<String, Object>() {{
 					put("%bid_increment_price%", AuctionAPI.getInstance().formatNumber(bidIncrementPrice));
 				}}), ClickType.LEFT, e -> {
-					setTheItemToBeListed();
 					setAllowClose(true);
 
 					e.gui.close();
@@ -294,7 +282,7 @@ public class GUISellItem extends AbstractPlaceholderGui {
 						reopen(e);
 					});
 
-					builder.onPlayerDiconnect(() -> PlayerUtils.giveItem(e.player, this.itemToBeListed));
+					builder.onPlayerDiconnect(() -> PlayerUtils.giveItem(e.player, getItemAndReset()));
 
 					PlayerChatInput<Double> input = builder.build();
 					input.start();
@@ -304,7 +292,6 @@ public class GUISellItem extends AbstractPlaceholderGui {
 			if (Settings.ALLOW_USAGE_OF_BUY_NOW_SYSTEM.getBoolean()) {
 				setButton(3, 6, ConfigurationItemHelper.createConfigurationItem(this.isAllowingBuyNow ? Settings.GUI_SELL_ITEMS_BUY_NOW_ENABLED_ITEM.getString() : Settings.GUI_SELL_ITEMS_BUY_NOW_DISABLED_ITEM.getString(), this.isAllowingBuyNow ? Settings.GUI_SELL_ITEMS_BUY_NOW_ENABLED_NAME.getString() : Settings.GUI_SELL_ITEMS_BUY_NOW_DISABLED_NAME.getString(), this.isAllowingBuyNow ? Settings.GUI_SELL_ITEMS_BUY_NOW_ENABLED_LORE.getStringList() : Settings.GUI_SELL_ITEMS_BUY_NOW_DISABLED_LORE.getStringList(), null), ClickType.LEFT, e -> {
 					this.isAllowingBuyNow = !this.isAllowingBuyNow;
-					setTheItemToBeListed();
 					draw();
 				});
 			}
@@ -317,15 +304,13 @@ public class GUISellItem extends AbstractPlaceholderGui {
 						this.isBiddingItem = !this.isBiddingItem;
 					}
 				}
-				setTheItemToBeListed();
 				draw();
 			});
 		}
 
 		setButton(3, 7, ConfigurationItemHelper.createConfigurationItem(Settings.GUI_SELL_ITEMS_CONFIRM_LISTING_ITEM.getString(), Settings.GUI_SELL_ITEMS_CONFIRM_LISTING_NAME.getString(), Settings.GUI_SELL_ITEMS_CONFIRM_LISTING_LORE.getStringList(), null), e -> {
 			// if the item in the sell slot is null then stop the listing
-			if (getItem(1, 4) == null || getItem(1, 4).getType() == XMaterial.AIR.parseMaterial()) return;
-			setTheItemToBeListed();
+			if (itemToBeListed == null || itemToBeListed.getType() == XMaterial.AIR.parseMaterial()) return;
 
 			if (Settings.MAKE_BLOCKED_ITEMS_A_WHITELIST.getBoolean()) {
 				if (!Settings.BLOCKED_ITEMS.getStringList().contains(this.itemToBeListed.getType().name())) {
@@ -485,6 +470,12 @@ public class GUISellItem extends AbstractPlaceholderGui {
 
 	}
 
+	private ItemStack getItemAndReset() {
+		final ItemStack buf = itemToBeListed;
+		this.itemToBeListed = null;
+		return buf;
+	}
+
 	private boolean handleClosableCursorItem(@NonNull final GuiClickEvent e) {
 		if (e.cursor != null && getItem(1, 4) == null) {
 //			AuctionHouse.getInstance().getAuctionPlayerManager().addItemToSellHolding(player.getUniqueId(), e.cursor);
@@ -496,11 +487,6 @@ public class GUISellItem extends AbstractPlaceholderGui {
 		return false;
 	}
 
-	private void setTheItemToBeListed() {
-		this.itemToBeListed = getItem(1, 4);
-		this.auctionPlayer.setItemBeingListed(this.itemToBeListed);
-	}
-
 	private boolean validateChatNumber(String input, double requirement, boolean checkMax) {
 		String val = ChatColor.stripColor(input);
 		if (checkMax)
@@ -509,17 +495,6 @@ public class GUISellItem extends AbstractPlaceholderGui {
 	}
 
 	private void reopen(GuiClickEvent e) {
-		e.manager.showGUI(e.player, new GUISellItem(this.auctionPlayer, this.auctionPlayer.getItemBeingListed(), this.buyNowPrice, this.bidStartPrice, this.bidIncrementPrice, this.isBiddingItem, this.isAllowingBuyNow, this.auctionTime));
-	}
-
-	private void makeMess() {
-		task = Bukkit.getServer().getScheduler().runTaskTimerAsynchronously(AuctionHouse.getInstance(), this::setTheItemToBeListed, 0L, 10);
-		this.auctionPlayer.setAssignedTaskId(task.getTaskId());
-	}
-
-	private void cleanup() {
-		if (task != null) {
-			task.cancel();
-		}
+		e.manager.showGUI(e.player, new GUISellItem(this.auctionPlayer, this.itemToBeListed, this.buyNowPrice, this.bidStartPrice, this.bidIncrementPrice, this.isBiddingItem, this.isAllowingBuyNow, this.auctionTime));
 	}
 }

@@ -6,6 +6,7 @@ import ca.tweetzy.auctionhouse.api.UpdateChecker;
 import ca.tweetzy.auctionhouse.api.hook.PlaceholderAPIHook;
 import ca.tweetzy.auctionhouse.auction.AuctionPlayer;
 import ca.tweetzy.auctionhouse.guis.GUIAuctionHouse;
+import ca.tweetzy.auctionhouse.guis.GUISellItem;
 import ca.tweetzy.auctionhouse.helpers.PlayerHelper;
 import ca.tweetzy.auctionhouse.settings.Settings;
 import ca.tweetzy.core.compatibility.ServerVersion;
@@ -49,11 +50,10 @@ public class PlayerListeners implements Listener {
 
 		final AuctionPlayer auctionPlayer = AuctionHouse.getInstance().getAuctionPlayerManager().getPlayer(player.getUniqueId());
 		if (auctionPlayer != null) {
-			// task id cancel
-			Bukkit.getServer().getScheduler().cancelTask(auctionPlayer.getAssignedTaskId());
-
-			if (auctionPlayer.getItemBeingListed() != null && player.getLocation().getWorld() != null) {
-				player.getLocation().getWorld().dropItemNaturally(player.getLocation(), auctionPlayer.getItemBeingListed());
+			final GUISellItem unReturnedGui = AuctionHouse.getInstance().getAuctionPlayerManager().getUsingSellGUI().get(player.getUniqueId());
+			if (unReturnedGui != null && unReturnedGui.getItemToBeListed() != null && player.getLocation().getWorld() != null) {
+				AuctionHouse.getInstance().getLogger().info("Player " + player.getName() + " died with unreturned item, putting it in drops");
+				event.getDrops().add(unReturnedGui.getItemToBeListed());
 			}
 		}
 
