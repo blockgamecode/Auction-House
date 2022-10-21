@@ -16,6 +16,7 @@ import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.lang.ref.WeakReference;
 import java.sql.*;
 import java.time.Duration;
 import java.time.Instant;
@@ -595,7 +596,7 @@ public class DataManager extends DataManagerAbstract {
 	private AuctionPlayer extractAuctionPlayer(ResultSet resultSet) throws SQLException {
 		return new AuctionPlayer(
 				UUID.fromString(resultSet.getString("uuid")),
-				Bukkit.getPlayer(UUID.fromString(resultSet.getString("uuid"))),
+				new WeakReference<>(Bukkit.getPlayer(UUID.fromString(resultSet.getString("uuid")))),
 				AuctionSaleType.valueOf(resultSet.getString("filter_sale_type")),
 				AuctionItemCategory.valueOf(resultSet.getString("filter_item_category")),
 				AuctionSortType.valueOf(resultSet.getString("filter_sort_type")),
